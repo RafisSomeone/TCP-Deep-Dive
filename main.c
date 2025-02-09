@@ -44,7 +44,7 @@ int range_hex_to_decimal(unsigned char* buffer, int from, int to) {
     return result;
 }
 
-void print_ethernet_header(unsigned char* buffer, int from, int to) {
+void parse_ethernet_header(unsigned char* buffer, int from, int to) {
     int destiantion_mac_size = 6;
     int source_mac_size = 6;
     int ethertype_size = 2;
@@ -63,13 +63,13 @@ void print_ethernet_header(unsigned char* buffer, int from, int to) {
     print_range(buffer, ethertype_start, to);
 }
 
-void print_tcp_header(unsigned char* buffer, int from, int to) {
+int parse_tcp_header(unsigned char* buffer, int from) {
     int source_port_size = 2;
     int destination_port_size = 2;
     int sequence_number_size = 4;
     int acknowledgment_number_size = 4;
     int data_offset_size = 1;
-    int reserved_flags_size = 1;
+    int flags_size = 1;
     int window_size = 2;
     int checksum_size = 2;
     int urgent_pointer_size = 2;
@@ -80,8 +80,8 @@ void print_tcp_header(unsigned char* buffer, int from, int to) {
     int sequence_number_start = destination_port_start + destination_port_size;
     int acknowledgment_number_start = sequence_number_start + sequence_number_size;
     int data_offset_start = acknowledgment_number_start + acknowledgment_number_size;
-    int reserved_flags_start = data_offset_start + data_offset_size;
-    int window_size_start = reserved_flags_start + reserved_flags_size;
+    int flags_start = data_offset_start + data_offset_size;
+    int window_size_start = flags_start + flags_size;
     int checksum_start = window_size_start + window_size;
     int urgent_pointer_start = checksum_start + checksum_size;
     int options_start = urgent_pointer_start + urgent_pointer_size; 
@@ -99,15 +99,22 @@ void print_tcp_header(unsigned char* buffer, int from, int to) {
     int acknowledgment_number = range_hex_to_decimal(buffer, acknowledgment_number_start, data_offset_start);
     printf("Acknowledgment Number: %d\n", acknowledgment_number);
 
-    int data_offset_flags = buffer[data_offset_start];
-    int data_offset = ((data_offset_flags >> 4) & 0x0F) * data_offset_word_size;
+    int data_offset_reserved = buffer[data_offset_start];
+    int data_offset = ((data_offset_reserved >> 4) & 0x0F) * data_offset_word_size;
     printf("Data Offset: %d bytes\n", data_offset);
 
-    int reserved = (data_offset_flags & 0x0F);
+    int reserved = (data_offset_reserved & 0x0F);
     printf("Reserved: %x\n", reserved);
 
+    int flags = buffer[flags_start];
     printf("Flags: ");
-    print_bits(buffer, reserved_flags_start, window_size_start);
+    if (flags & 0x02) printf("SYN ");
+    if (flags & 0x10) printf("ACK ");
+    if (flags & 0x01) printf("FIN ");
+    if (flags & 0x04) printf("RST ");
+    if (flags & 0x08) printf("PSH ");
+    if (flags & 0x20) printf("URG ");
+    printf("\n");
 
     int window = range_hex_to_decimal(buffer, window_size_start, checksum_start);
     printf("Window Size: %d\n", window);
@@ -117,13 +124,21 @@ void print_tcp_header(unsigned char* buffer, int from, int to) {
 
     int urgent_pointer = range_hex_to_decimal(buffer, urgent_pointer_start, options_start);
     printf("Urgent Pointer: %d\n", urgent_pointer);
+
+    printf("Options: ");
+    if (from + data_offset - options_start <= 0) {
+        printf("Empty");
+    }
+    print_range(buffer, options_start, from + data_offset);
+
+    return data_offset;
 }
 
 void print_ip(unsigned char* buffer, int from) {
     printf("%d.%d.%d.%d\n", buffer[from], buffer[from + 1], buffer[from + 2], buffer[from + 3]);
 }
 
-void print_ip_header(unsigned char* buffer, int from, int to) {
+int parse_ip_header(unsigned char* buffer, int from) {
     int version_ihl_size = 1;
     int ecn_size = 1;
     int total_length_size = 2;
@@ -149,6 +164,7 @@ void print_ip_header(unsigned char* buffer, int from, int to) {
     int checksum_start = protocol_start + protocol_size;
     int source_ip_start = checksum_start + checksum_size;
     int destination_ip_start = source_ip_start + source_ip_size;
+    int options_start = destination_ip_start + destination_ip_size;
 
     printf("\n");
     printf("Version: %d\n", version);
@@ -180,34 +196,45 @@ void print_ip_header(unsigned char* buffer, int from, int to) {
 
     printf("Destination IP: ");
     print_ip(buffer, destination_ip_start);
+
+    printf("Options IP: ");
+    if (from + ihl - options_start <= 0) {
+        printf("Empty");
+    }
+    print_range(buffer, options_start, from + ihl);
+
+    return ihl;
 }
 
 void print_sections(unsigned char* buffer, int size) {
-    int ethernet_header_size = 14;
-    int ip_header_size = 20;
-    int tcp_header_size = 20;
-
     int ethernet_header_start = 0;
+    int ethernet_header_size = 14;
     int ip_header_start = ethernet_header_start + ethernet_header_size;
-    int tcp_header_start = ip_header_start + ip_header_size;
-    int payload_start = tcp_header_start + tcp_header_size;
 
     printf("Ethernet header:\n");
+    parse_ethernet_header(buffer, ethernet_header_start, ip_header_start);
+    printf("Raw Ethernet header: ");
     print_range(buffer, ethernet_header_start, ip_header_start);
-    print_ethernet_header(buffer, ethernet_header_start, ip_header_start);
     printf("\n");
 
     printf("IP header:\n");
+    int ip_header_size = parse_ip_header(buffer, ip_header_start);
+    int tcp_header_start = ip_header_start + ip_header_size;
+    printf("Raw IP header: ");
     print_range(buffer, ip_header_start, tcp_header_start);
-    print_ip_header(buffer, ip_header_start, tcp_header_start);
     printf("\n");
 
     printf("TCP header:\n");
+    int tcp_header_size = parse_tcp_header(buffer, tcp_header_start);
+    int payload_start = tcp_header_start + tcp_header_size;
+    printf("Raw TCP header: ");
     print_range(buffer, tcp_header_start, payload_start);
-    print_tcp_header(buffer, tcp_header_start, payload_start);
     printf("\n");
 
     printf("Payload:\n");
+    if (size - payload_start == 0) {
+        printf("Empty");
+    }
     print_range(buffer, payload_start, size);
     printf("\n");
 }
@@ -230,7 +257,9 @@ int main() {
                                       (struct sockaddr*)&client_addr, &addr_len);
         if (bytes_received < 0) {
             printf("recvfrom failed");
-            break;
+            close(server_fd);
+            free(buffer);
+            exit(1);
         }
 
         struct ethhdr *eth = (struct ethhdr *)buffer;
