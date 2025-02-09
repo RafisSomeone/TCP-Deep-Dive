@@ -10,9 +10,39 @@
 #include <netinet/tcp.h>  
 #include <net/ethernet.h>
 
+void print_range(unsigned char* buffer, int from, int to) {
+    for (int i = from; i < to; i++) {
+        printf("%02X ", buffer[i]);
+    }
+    printf("\n\n");
+}
+
+void print_sections(unsigned char* buffer, int size) {
+    int ethernet_header_size = 14;
+    int ip_header_size = 20;
+    int tcp_header_size = 20;
+
+    int ethernet_header_start = 0;
+    int ip_header_start = ethernet_header_start + ethernet_header_size;
+    int tcp_header_start = ip_header_start + ip_header_size;
+    int payload_start = tcp_header_start + tcp_header_size;
+
+    printf("Ethernet header:\n");
+    print_range(buffer, ethernet_header_start, ip_header_start);
+
+    printf("IP header:\n");
+    print_range(buffer, ip_header_start, tcp_header_start);
+
+    printf("TCP header:\n");
+    print_range(buffer, tcp_header_start, payload_start);
+
+    printf("Payload:\n");
+    print_range(buffer, payload_start, size);
+}
+
 int main() {
     int max_ip_v4_packet_size = 65536; 
-    unsigned char* buffer = (unsigned char*) malloc(max_ip_v4_packet_size);
+    unsigned char* buffer = malloc(max_ip_v4_packet_size);
     int server_fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 
     if (server_fd < 0) {
@@ -62,11 +92,20 @@ int main() {
             printf("   Source IP: %s\n", inet_ntoa(*(struct in_addr *)&ip->saddr));
             printf("   Destination IP: %s\n", inet_ntoa(*(struct in_addr *)&ip->daddr));
             printf("   Protocol: %d\n", ip->protocol);
-            printf("   Total Length: %d\n", ntohs(ip->tot_len));
+            printf("   Total Length: %d\n\n", ntohs(ip->tot_len));
         }
+
+        for (int i = 0; i < bytes_received; i++) {
+            printf("%02X ", buffer[i]);
+        }
+        printf("\n\n");
+
+        print_sections(buffer, bytes_received);
+
     }
 
     close(server_fd);
     free(buffer);
     return 0;
 }
+
