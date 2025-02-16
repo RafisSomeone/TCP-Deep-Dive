@@ -9,6 +9,8 @@
 #include <netinet/ip_icmp.h>
 #include <netinet/tcp.h>  
 #include <net/ethernet.h>
+#include <net/if.h>
+#include <netpacket/packet.h>
 
 const int max_ip_v4_packet_size = 65535; 
 typedef struct {
@@ -389,8 +391,8 @@ unsigned char* send_syn_ack(const packet* packet){
     ip_response->version = packet->ip->version;
     ip_response->tos = packet->ip->tos;
     ip_response->tot_len = htons(sizeof(struct iphdr) + sizeof(struct tcphdr));
-    ip_response->id = 0;
-    ip_response->frag_off = htons((1 << 14)); // 01000000 00000000
+    ip_response->id = htons(rand() % 65535);
+    ip_response->frag_off = 0;
     ip_response->ttl = packet->ip->ttl;
     ip_response->protocol = packet->ip->protocol;
     ip_response->saddr = packet->ip->daddr;
@@ -404,12 +406,13 @@ unsigned char* send_syn_ack(const packet* packet){
     tcp_response->syn = 1;
     tcp_response->ack = 1;
     tcp_response->window = htons(max_ip_v4_packet_size);
-    tcp_response->check = 0;
     tcp_response->urg_ptr = 0;
-    tcp_response->check = tcp_checksum(ip_response, tcp_response, "", 0);
+    tcp_response->check = 0;
+    tcp_response->check = tcp_checksum(ip_response, tcp_response, NULL, 0);
 
     ip_response->check = 0;
     ip_response->check = calculate_checksum((unsigned short*)ip_response, sizeof(struct iphdr));
+
     return response;
 } 
 
@@ -423,7 +426,7 @@ int main() {
     }
 
     struct sockaddr_ll client_addr;
-    socklen_t addr_len = sizeof(client_addr);
+    socklen_t addr_len = sizeof(struct sockaddr_ll);
     int flag = 1;
 
     while (1) {
@@ -444,7 +447,7 @@ int main() {
 
         printf("\nReceived pacet of size %d bytes\n", bytes_received);
 
-        print_built_in(packet);
+        // print_built_in(packet); print using built in structures
 
         print_raw_bits(buffer, bytes_received);
         print_sections(buffer, bytes_received);
@@ -453,18 +456,9 @@ int main() {
 
         unsigned char* toSend = send_syn_ack(packet);
 
-
-        struct sockaddr_ll device;
-        memset(&device, 0, sizeof(struct sockaddr_ll));
-        device.sll_family   = AF_PACKET;
-        device.sll_protocol = htons(ETH_P_ALL);
-        device.sll_ifindex  = if_nametoindex("wlp2s0"); 
-        memcpy(device.sll_addr, packet->eth->h_source, ETH_ALEN);
-        device.sll_halen = ETH_ALEN;
-
-        int result = sendto(server_fd, toSend, max_ip_v4_packet_size, 0, 
+        int result = sendto(server_fd, toSend, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
                             (struct sockaddr*)&client_addr, addr_len);
- 
+        perror("sendto");
         flag++;
         }
     }
