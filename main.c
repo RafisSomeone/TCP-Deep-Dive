@@ -10,6 +10,13 @@
 #include <netinet/tcp.h>  
 #include <net/ethernet.h>
 
+const int max_ip_v4_packet_size = 65535; 
+typedef struct {
+   struct ethhdr* eth;
+   struct iphdr* ip;
+   struct tcphdr* tcp;
+} packet;
+
 void print_range(unsigned char* buffer, int from, int to) {
     for (int i = from; i < to; i++) {
         printf("%02X ", buffer[i]);
@@ -34,8 +41,8 @@ void print_bits(unsigned char* buffer, int from, int to) {
     printf("\n");
 }
 
-int range_hex_to_decimal(unsigned char* buffer, int from, int to) {
-    int result = 0;
+unsigned long range_hex_to_decimal(unsigned char* buffer, int from, int to) {
+    unsigned long result = 0;
 
     for (int i = from; i < to; i++) {
         result = (result << 8) | buffer[i];
@@ -87,17 +94,17 @@ int parse_tcp_header(unsigned char* buffer, int from) {
     int options_start = urgent_pointer_start + urgent_pointer_size; 
 
     printf("\n");
-    int source_port = range_hex_to_decimal(buffer, source_port_start, destination_port_start);
-    printf("Source Port: %d\n", source_port);
+    unsigned long source_port = range_hex_to_decimal(buffer, source_port_start, destination_port_start);
+    printf("Source Port: %ld\n", source_port);
 
-    int destination_port = range_hex_to_decimal(buffer, destination_port_start, sequence_number_start);
-    printf("Destination Port: %d\n", destination_port);
+    unsigned long destination_port = range_hex_to_decimal(buffer, destination_port_start, sequence_number_start);
+    printf("Destination Port: %ld\n", destination_port);
 
-    int sequence_number = range_hex_to_decimal(buffer, sequence_number_start, acknowledgment_number_start);
-    printf("Sequence Number: %d\n", sequence_number);
+    unsigned long sequence_number = range_hex_to_decimal(buffer, sequence_number_start, acknowledgment_number_start);
+    printf("Sequence Number: %ld\n", sequence_number);
 
-    int acknowledgment_number = range_hex_to_decimal(buffer, acknowledgment_number_start, data_offset_start);
-    printf("Acknowledgment Number: %d\n", acknowledgment_number);
+    unsigned long acknowledgment_number = range_hex_to_decimal(buffer, acknowledgment_number_start, data_offset_start);
+    printf("Acknowledgment Number: %ld\n", acknowledgment_number);
 
     int data_offset_reserved = buffer[data_offset_start];
     int data_offset = ((data_offset_reserved >> 4) & 0x0F) * data_offset_word_size;
@@ -116,14 +123,14 @@ int parse_tcp_header(unsigned char* buffer, int from) {
     if (flags & 0x20) printf("URG ");
     printf("\n");
 
-    int window = range_hex_to_decimal(buffer, window_size_start, checksum_start);
-    printf("Window Size: %d\n", window);
+    unsigned long window = range_hex_to_decimal(buffer, window_size_start, checksum_start);
+    printf("Window Size: %ld\n", window);
 
     printf("Checksum: ");
     print_range(buffer, checksum_start, urgent_pointer_start);
 
-    int urgent_pointer = range_hex_to_decimal(buffer, urgent_pointer_start, options_start);
-    printf("Urgent Pointer: %d\n", urgent_pointer);
+    unsigned long urgent_pointer = range_hex_to_decimal(buffer, urgent_pointer_start, options_start);
+    printf("Urgent Pointer: %ld\n", urgent_pointer);
 
     printf("Options: ");
     if (from + data_offset - options_start <= 0) {
@@ -173,8 +180,8 @@ int parse_ip_header(unsigned char* buffer, int from) {
     printf("ECN & DSCP: ");
     print_range(buffer, ecn_start, total_length_start);
 
-    int total_length = range_hex_to_decimal(buffer, total_length_start, identification_start);
-    printf("Total Length: %d bytes\n", total_length);
+    unsigned long total_length = range_hex_to_decimal(buffer, total_length_start, identification_start);
+    printf("Total Length: %ld bytes\n", total_length);
 
     printf("Identification: ");
     print_range(buffer, identification_start, flags_fragment_offset_start);
@@ -182,11 +189,11 @@ int parse_ip_header(unsigned char* buffer, int from) {
     printf("Flags & Fragment Offset: ");
     print_bits(buffer, flags_fragment_offset_start, ttl_start);
 
-    int ttl = range_hex_to_decimal(buffer, ttl_start, protocol_start);
-    printf("Time to Live: %d\n", ttl);
+    unsigned long ttl = range_hex_to_decimal(buffer, ttl_start, protocol_start);
+    printf("Time to Live: %ld\n", ttl);
 
-    int protocol = range_hex_to_decimal(buffer, protocol_start, checksum_start); 
-    printf("Protocol: %d \n", protocol);
+    unsigned long protocol = range_hex_to_decimal(buffer, protocol_start, checksum_start); 
+    printf("Protocol: %ld \n", protocol);
 
     printf("Header Checksum: ");
     print_range(buffer, checksum_start, source_ip_start);
@@ -239,8 +246,174 @@ void print_sections(unsigned char* buffer, int size) {
     printf("\n");
 }
 
+void print_raw_bits(unsigned char* buffer, int size) {
+    for (int i = 0; i < size; i++) {
+        printf("%02X ", buffer[i]);
+    }
+
+    printf("\n\n");
+}
+
+void print_eth_built_in(const struct ethhdr* eth) {
+    printf("Ethernet Header:\n");
+    printf("   Source MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+           eth->h_source[0], eth->h_source[1], eth->h_source[2],
+           eth->h_source[3], eth->h_source[4], eth->h_source[5]);
+    printf("   Destination MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+           eth->h_dest[0], eth->h_dest[1], eth->h_dest[2],
+           eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
+    printf("   Protocol: 0x%04X\n", ntohs(eth->h_proto));
+}
+
+void print_ip_built_in(const struct iphdr* ip) {
+    printf("IP Header:\n");
+    printf("   Source IP: %s\n", inet_ntoa(*(struct in_addr *)&ip->saddr));
+    printf("   Destination IP: %s\n", inet_ntoa(*(struct in_addr *)&ip->daddr));
+    printf("   Protocol: %d\n", ip->protocol);
+    printf("   Total Length: %d\n\n", ntohs(ip->tot_len));
+}
+
+void print_tcp_built_in(const struct tcphdr* tcp) {
+    unsigned int header_len = tcp->doff * 4;  
+    unsigned char flags = 0;
+    flags = *((unsigned char*)tcp + 13); 
+    printf("TCP Header:\n");
+    printf("   Header Length: %d bytes\n", header_len);
+    printf("   Flags: ");
+    if (flags & TH_SYN) printf("SYN ");
+    if (flags & TH_ACK) printf("ACK ");
+    if (flags & TH_FIN) printf("FIN ");
+    if (flags & TH_RST) printf("RST ");
+    if (flags & TH_PUSH) printf("PSH ");
+    if (flags & TH_URG) printf("URG ");
+    printf("\n");
+    printf("   Window Size: %u\n", ntohs(tcp->window));
+    printf("   Checksum: 0x%04X\n", ntohs(tcp->check));
+    printf("   Urgent Pointer: %u\n\n", ntohs(tcp->urg_ptr));
+}
+
+void print_built_in(const packet* packet) {
+    struct ethhdr* eth = packet->eth;
+    print_eth_built_in(eth);
+     
+    struct iphdr* ip = packet->ip;
+    print_ip_built_in(ip);
+
+    struct tcphdr* tcp = packet->tcp;
+    print_tcp_built_in(tcp);
+}
+
+int parse_packet(unsigned char* buffer, packet* packet) {
+
+    struct ethhdr* eth =(struct ethhdr*) buffer;
+    if (ntohs(eth->h_proto) != ETH_P_IP) {
+        return -1;
+    }
+
+    struct iphdr* ip = (struct iphdr*) (buffer + sizeof(struct ethhdr)); 
+    if (ip->protocol != IPPROTO_TCP) {
+        return -1;
+    }
+
+    int ip_header_size = ip->ihl * 4;
+    int eth_ip_header_size = sizeof(struct ethhdr) + ip_header_size; 
+    struct tcphdr* tcp = (struct tcphdr*) (buffer + eth_ip_header_size);
+
+    if (ntohs(tcp->dest) != 3000)  {
+        return -1;  
+    }
+
+    packet->eth = eth;
+    packet->ip = ip;
+    packet->tcp = tcp;
+
+    return 0;
+}
+
+struct pseudo_header {
+    uint32_t src_addr;
+    uint32_t dst_addr;
+    uint8_t  placeholder;
+    uint8_t  protocol;
+    uint16_t tcp_length;
+};
+
+unsigned short calculate_checksum(unsigned short *buf, int len) {
+    unsigned long sum = 0;
+    while (len > 1) {
+        sum += *buf++;
+        len -= 2;
+    }
+    if (len == 1) {
+        sum += *(unsigned char*)buf;
+    }
+    sum = (sum >> 16) + (sum & 0xffff);
+    sum += (sum >> 16);
+    return (unsigned short)(~sum);
+}
+
+unsigned short tcp_checksum(const struct iphdr *ip, const struct tcphdr *tcp, const unsigned char *payload, int payload_len) {
+    int tcp_len = sizeof(struct tcphdr) + payload_len;
+
+    struct pseudo_header psh;
+    psh.src_addr = ip->saddr;
+    psh.dst_addr = ip->daddr;
+    psh.placeholder = 0;
+    psh.protocol = IPPROTO_TCP;
+    psh.tcp_length = htons(tcp_len);
+
+    int psize = sizeof(struct pseudo_header) + tcp_len;
+    unsigned char *pseudogram = calloc(1, psize);
+
+    memcpy(pseudogram, &psh, sizeof(struct pseudo_header));
+    memcpy(pseudogram + sizeof(struct pseudo_header), tcp, tcp_len);
+
+    unsigned short checksum = calculate_checksum((unsigned short*)pseudogram, psize);
+    free(pseudogram);
+    return checksum;
+}
+
+
+unsigned char* send_syn_ack(const packet* packet){
+    unsigned char* response = malloc(max_ip_v4_packet_size);
+    struct ethhdr* eth_response = (struct ethhdr*) response;
+
+    memcpy(eth_response->h_dest, packet->eth->h_source, ETH_ALEN);
+    memcpy(eth_response->h_source, packet->eth->h_dest, ETH_ALEN);
+    eth_response->h_proto = packet->eth->h_proto;
+
+    struct iphdr* ip_response = (struct iphdr*) (response + sizeof(struct ethhdr));
+    struct tcphdr* tcp_response = (struct tcphdr*) (response + sizeof(struct ethhdr) + sizeof(struct iphdr));
+    
+    ip_response->ihl = 5;
+    ip_response->version = packet->ip->version;
+    ip_response->tos = packet->ip->tos;
+    ip_response->tot_len = htons(sizeof(struct iphdr) + sizeof(struct tcphdr));
+    ip_response->id = 0;
+    ip_response->frag_off = htons((1 << 14)); // 01000000 00000000
+    ip_response->ttl = packet->ip->ttl;
+    ip_response->protocol = packet->ip->protocol;
+    ip_response->saddr = packet->ip->daddr;
+    ip_response->daddr = packet->ip->saddr;
+
+    tcp_response->source = packet->tcp->dest;
+    tcp_response->dest = packet->tcp->source;
+    tcp_response->seq = htonl(rand() % 100000);
+    tcp_response->ack_seq = htonl(ntohl(packet->tcp->seq) + 1);
+    tcp_response->doff = 5;
+    tcp_response->syn = 1;
+    tcp_response->ack = 1;
+    tcp_response->window = htons(max_ip_v4_packet_size);
+    tcp_response->check = 0;
+    tcp_response->urg_ptr = 0;
+    tcp_response->check = tcp_checksum(ip_response, tcp_response, "", 0);
+
+    ip_response->check = 0;
+    ip_response->check = calculate_checksum((unsigned short*)ip_response, sizeof(struct iphdr));
+    return response;
+} 
+
 int main() {
-    int max_ip_v4_packet_size = 65536; 
     unsigned char* buffer = malloc(max_ip_v4_packet_size);
     int server_fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 
@@ -249,60 +422,51 @@ int main() {
         exit(2);
     }
 
-    struct sockaddr_in client_addr;
+    struct sockaddr_ll client_addr;
     socklen_t addr_len = sizeof(client_addr);
+    int flag = 1;
 
     while (1) {
         int bytes_received = recvfrom(server_fd, buffer, max_ip_v4_packet_size, 0, 
-                                      (struct sockaddr*)&client_addr, &addr_len);
+                                      (struct sockaddr*) &client_addr, &addr_len);
         if (bytes_received < 0) {
             printf("recvfrom failed");
             close(server_fd);
             free(buffer);
             exit(1);
         }
+        
+        packet* packet = malloc(sizeof(packet));
 
-        struct ethhdr *eth = (struct ethhdr *)buffer;
-        struct iphdr *ip = (struct iphdr *)(buffer + sizeof(struct ethhdr)); 
-
-        int ip_header_size = ip->ihl * 4;
-        int eth_ip_header_size = sizeof(struct ethhdr) + ip_header_size; 
-
-            
-        if (ip->protocol != IPPROTO_TCP) {
+        if (parse_packet(buffer, packet) == -1) {
             continue;
         }
 
-        struct tcphdr *tcp = (struct tcphdr *)(buffer + eth_ip_header_size);
-        if (ntohs(tcp->dest) != 3000)  {
-            continue;  
-        }
+        printf("\nReceived pacet of size %d bytes\n", bytes_received);
 
-        printf("\nReceived packet of size %d bytes\n", bytes_received);
-        printf("Ethernet Header:\n");
-        printf("   Source MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
-               eth->h_source[0], eth->h_source[1], eth->h_source[2],
-               eth->h_source[3], eth->h_source[4], eth->h_source[5]);
-        printf("   Destination MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
-               eth->h_dest[0], eth->h_dest[1], eth->h_dest[2],
-               eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
-        printf("   Protocol: 0x%04X\n", ntohs(eth->h_proto));
+        print_built_in(packet);
 
-        if (ntohs(eth->h_proto) == ETH_P_IP) {
-            printf("IP Header:\n");
-            printf("   Source IP: %s\n", inet_ntoa(*(struct in_addr *)&ip->saddr));
-            printf("   Destination IP: %s\n", inet_ntoa(*(struct in_addr *)&ip->daddr));
-            printf("   Protocol: %d\n", ip->protocol);
-            printf("   Total Length: %d\n\n", ntohs(ip->tot_len));
-        }
-
-        for (int i = 0; i < bytes_received; i++) {
-            printf("%02X ", buffer[i]);
-        }
-        printf("\n\n");
-
+        print_raw_bits(buffer, bytes_received);
         print_sections(buffer, bytes_received);
+        
+        if (flag == 1) {
 
+        unsigned char* toSend = send_syn_ack(packet);
+
+
+        struct sockaddr_ll device;
+        memset(&device, 0, sizeof(struct sockaddr_ll));
+        device.sll_family   = AF_PACKET;
+        device.sll_protocol = htons(ETH_P_ALL);
+        device.sll_ifindex  = if_nametoindex("wlp2s0"); 
+        memcpy(device.sll_addr, packet->eth->h_source, ETH_ALEN);
+        device.sll_halen = ETH_ALEN;
+
+        int result = sendto(server_fd, toSend, max_ip_v4_packet_size, 0, 
+                            (struct sockaddr*)&client_addr, addr_len);
+ 
+        flag++;
+        }
     }
 
     close(server_fd);
