@@ -296,18 +296,18 @@ void print_tcp_built_in(const struct tcphdr* tcp) {
     printf("   Urgent Pointer: %u\n\n", ntohs(tcp->urg_ptr));
 }
 
-void print_built_in(const packet* packet) {
-    struct ethhdr* eth = packet->eth;
+void print_built_in(const packet* current_packet) {
+    struct ethhdr* eth = current_packet->eth;
     print_eth_built_in(eth);
      
-    struct iphdr* ip = packet->ip;
+    struct iphdr* ip = current_packet->ip;
     print_ip_built_in(ip);
 
-    struct tcphdr* tcp = packet->tcp;
+    struct tcphdr* tcp = current_packet->tcp;
     print_tcp_built_in(tcp);
 }
 
-int parse_packet(unsigned char* buffer, packet* packet) {
+int parse_packet(unsigned char* buffer, packet* current_packet) {
 
     struct ethhdr* eth =(struct ethhdr*) buffer;
     if (ntohs(eth->h_proto) != ETH_P_IP) {
@@ -327,16 +327,16 @@ int parse_packet(unsigned char* buffer, packet* packet) {
         return -1;  
     }
 
-    packet->eth = eth;
-    packet->ip = ip;
-    packet->tcp = tcp;
+    current_packet->eth = eth;
+    current_packet->ip = ip;
+    current_packet->tcp = tcp;
     
-    packet->payload_size = ntohs(ip->tot_len) - ip_header_size - tcp->doff * 4;
+    current_packet->payload_size = ntohs(ip->tot_len) - ip_header_size - tcp->doff * 4;
 
-    if (packet->payload_size > 0) {
-        packet->payload = malloc(packet->payload_size * sizeof(unsigned char));
+    if (current_packet->payload_size > 0) {
+        current_packet->payload = malloc(current_packet->payload_size * sizeof(unsigned char));
     }
-    memcpy(packet->payload, buffer + eth_ip_header_size + tcp->doff * 4, packet->payload_size);
+    memcpy(current_packet->payload, buffer + eth_ip_header_size + tcp->doff * 4, current_packet->payload_size);
     return 0;
 }
 
@@ -384,30 +384,30 @@ unsigned short tcp_checksum(const struct iphdr *ip, const struct tcphdr *tcp, co
 }
 
 
-unsigned char* init_syn_ack(const packet* packet, int seq, int ack, int syn_flag, int fin_flag){
+unsigned char* init_syn_ack(const packet* current_packet, int seq, int ack, int syn_flag, int fin_flag){
     unsigned char* response = malloc(max_ip_v4_packet_size);
     struct ethhdr* eth_response = (struct ethhdr*) response;
 
-    memcpy(eth_response->h_dest, packet->eth->h_source, ETH_ALEN);
-    memcpy(eth_response->h_source, packet->eth->h_dest, ETH_ALEN);
-    eth_response->h_proto = packet->eth->h_proto;
+    memcpy(eth_response->h_dest, current_packet->eth->h_source, ETH_ALEN);
+    memcpy(eth_response->h_source, current_packet->eth->h_dest, ETH_ALEN);
+    eth_response->h_proto = current_packet->eth->h_proto;
 
     struct iphdr* ip_response = (struct iphdr*) (response + sizeof(struct ethhdr));
     struct tcphdr* tcp_response = (struct tcphdr*) (response + sizeof(struct ethhdr) + sizeof(struct iphdr));
     
     ip_response->ihl = 5;
-    ip_response->version = packet->ip->version;
-    ip_response->tos = packet->ip->tos;
+    ip_response->version = current_packet->ip->version;
+    ip_response->tos = current_packet->ip->tos;
     ip_response->tot_len = htons(sizeof(struct iphdr) + sizeof(struct tcphdr));
     ip_response->id = htons(rand() % 65535);
     ip_response->frag_off = 0;
-    ip_response->ttl = packet->ip->ttl;
-    ip_response->protocol = packet->ip->protocol;
-    ip_response->saddr = packet->ip->daddr;
-    ip_response->daddr = packet->ip->saddr;
+    ip_response->ttl = current_packet->ip->ttl;
+    ip_response->protocol = current_packet->ip->protocol;
+    ip_response->saddr = current_packet->ip->daddr;
+    ip_response->daddr = current_packet->ip->saddr;
 
-    tcp_response->source = packet->tcp->dest;
-    tcp_response->dest = packet->tcp->source;
+    tcp_response->source = current_packet->tcp->dest;
+    tcp_response->dest = current_packet->tcp->source;
     tcp_response->seq = htonl(seq);
     tcp_response->ack_seq = ack;
     tcp_response->doff = 5;
@@ -449,49 +449,50 @@ int main() {
             exit(1);
         }
         
-        packet* packet = malloc(sizeof(*packet));
+        packet* current_packet = malloc(sizeof(packet));
 
-        if (parse_packet(buffer, packet) == -1) {
+        if (parse_packet(buffer, current_packet) == -1) {
             continue;
         }
 
         printf("\nReceived pacet of size %d bytes\n", bytes_received);
 
-        // print_built_in(packet); print using built in structures
+        // print_built_in(current_packet); print using built in structures
 
         //print_raw_bits(buffer, bytes_received);
         //print_sections(buffer, bytes_received);
       
-        if (phase == 0 && packet->tcp->syn) {
+        if (phase == 0 && current_packet->tcp->syn) {
 
-        unsigned char* syn_ack = init_syn_ack(packet, server_seq, htonl(ntohl(packet->tcp->seq) + 1), 1, 0);
+        unsigned char* syn_ack = init_syn_ack(current_packet, server_seq, htonl(ntohl(current_packet->tcp->seq) + 1), 1, 0);
         int result = sendto(server_fd, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
                             (struct sockaddr*)&client_addr, addr_len);
         perror("sendto");
 
         phase++;
-        } else if(phase == 1 && packet->tcp->ack) {
+        } else if(phase == 1 && current_packet->tcp->ack) {
             phase++;
             printf("Connection established\n");
             server_seq++;
-        } else if(phase == 2 && packet->tcp->ack) {
+        } else if(phase == 2 && current_packet->tcp->ack) {
             phase++;
             printf("send2\n");
-            printf("Payload length %d\n", packet->payload_size);
-            unsigned char* syn_ack = init_syn_ack(packet, server_seq, htonl(packet->payload_size + ntohl(packet->tcp->seq)), 0, 0);
+            printf("Payload length %d\n", current_packet->payload_size);
+            unsigned char* syn_ack = init_syn_ack(current_packet, server_seq, htonl(current_packet->payload_size + ntohl(current_packet->tcp->seq)), 0, 0);
             int result = sendto(server_fd, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
                             (struct sockaddr*)&client_addr, addr_len);
-        } else if(phase == 3 && packet->tcp->fin) {
+        } else if(phase == 3 && current_packet->tcp->fin) {
             printf("send3\n");
             phase = 0;
 
-            unsigned char* syn_ack = init_syn_ack(packet, server_seq, htonl(ntohl(packet->tcp->seq) + 1), 0, 0);
+            unsigned char* syn_ack = init_syn_ack(current_packet, server_seq, htonl(ntohl(current_packet->tcp->seq) + 1), 0, 0);
             int result_sync = sendto(server_fd, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
                             (struct sockaddr*)&client_addr, addr_len);
             printf("send fin\n");
-            unsigned char* fin = init_syn_ack(packet, server_seq, htonl(ntohl(packet->tcp->seq) + 1), 0, 1);
+            unsigned char* fin = init_syn_ack(current_packet, server_seq, htonl(ntohl(current_packet->tcp->seq) + 1), 0, 1);
             int result_fin = sendto(server_fd, fin, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
                             (struct sockaddr*)&client_addr, addr_len);
+            sleep(1);
         }
 
     }
