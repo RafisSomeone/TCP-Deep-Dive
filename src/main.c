@@ -15,8 +15,15 @@
 #include "packet.h"
 #include "tcp.h"
 #include "ip.h"
+#include "options.h"
 
-int main() {
+int main(int argc, char** argv) {
+    struct options opts = parse_options(argc, argv);
+    
+    if (opts.help == 1) {
+        return 0;
+    }
+
     unsigned char* buffer = malloc(MAX_IP_V4_PACKET_SIZE);
     int server_fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 
