@@ -10,6 +10,7 @@
 #include "ethernet.h"
 #include "tcp.h"
 #include "context.h"
+#include "utils.h"
 
 #define COLOR_RESET   "\x1b[0m"
 
@@ -151,14 +152,14 @@ int parse_packet(unsigned char* buffer, struct packet* current_packet) {
     current_packet->payload_size = ntohs(ip->tot_len) - ip_header_size - tcp->doff * 4;
 
     if (current_packet->payload_size > 0) {
-        current_packet->payload = malloc(current_packet->payload_size * sizeof(unsigned char));
+        current_packet->payload = safe_malloc(current_packet->payload_size * sizeof(unsigned char));
     }
     memcpy(current_packet->payload, buffer + eth_ip_header_size + tcp->doff * 4, current_packet->payload_size);
     return 0;
 }
 
 unsigned char* init_syn_ack(const struct packet* current_packet, struct client_context* context, int ack, int syn_flag, int fin_flag){
-    unsigned char* response = malloc(MAX_IP_V4_PACKET_SIZE);
+    unsigned char* response = safe_malloc(MAX_IP_V4_PACKET_SIZE);
     struct ethhdr* eth_response = (struct ethhdr*) response;
 
     memcpy(eth_response->h_dest, current_packet->eth->h_source, ETH_ALEN);
