@@ -26,11 +26,112 @@ enum state {
 };
 
 
-enum state transition_from_listening(struct packet* current_packet, struct client_context context) {
+void print_tcpdump_from_buffer(const unsigned char* buffer, int size, const char* color) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);  // Get current timestamp
+
+    struct ethhdr* eth = (struct ethhdr*)buffer;
+    struct iphdr* ip = (struct iphdr*)(buffer + sizeof(struct ethhdr));
+    struct tcphdr* tcp = (struct tcphdr*)(buffer + sizeof(struct ethhdr) + (ip->ihl * 4));
+    int ip_header_size = ip->ihl * 4;
+    int tcp_header_size = tcp->doff * 4;
+    int payload_size = size - (sizeof(struct ethhdr) + ip_header_size + tcp_header_size);
+    unsigned char* payload = (unsigned char*)(buffer + sizeof(struct ethhdr) + ip_header_size + tcp_header_size);
+
+    char src_ip[INET_ADDRSTRLEN], dst_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(ip->saddr), src_ip, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &(ip->daddr), dst_ip, INET_ADDRSTRLEN);
+
+    // Apply color to output
+    printf("%s", color);
+
+    // Print timestamp
+    printf("%02ld:%02ld:%02ld.%06ld ", 
+           (tv.tv_sec / 3600) % 24, (tv.tv_sec / 60) % 60, tv.tv_sec % 60, tv.tv_usec);
+
+    // Print IP header information
+    printf("IP %s.%d > %s.%d: ", 
+           src_ip, ntohs(tcp->source), dst_ip, ntohs(tcp->dest));
+
+    // Print TCP Flags
+    printf("Flags [");
+    if (tcp->syn) printf("S");
+    if (tcp->ack) printf(".");
+    if (tcp->fin) printf("F");
+    if (tcp->rst) printf("R");
+    if (tcp->psh) printf("P");
+    if (tcp->urg) printf("U");
+    printf("], ");
+
+    // Print Sequence and Acknowledgment Numbers
+    printf("seq %u", ntohl(tcp->seq));
+    if (tcp->ack) {
+        printf(", ack %u", ntohl(tcp->ack_seq));
+    }
+
+    // Print Window Size
+    printf(", win %u", ntohs(tcp->window));
+
+    // Print Payload Length
+    printf(", length %d", payload_size);
+
+    // Reset color
+    printf("\x1b[0m" "\n");
+}
+void print_tcpdump_format(struct packet* pkt, const char* color) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);  // Get current timestamp
+
+    char src_ip[INET_ADDRSTRLEN], dst_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(pkt->ip->saddr), src_ip, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &(pkt->ip->daddr), dst_ip, INET_ADDRSTRLEN);
+
+    // Print with selected color
+    printf("%s", color);
+
+    // Convert timestamp to readable format
+    printf("%02ld:%02ld:%02ld.%06ld ", 
+           (tv.tv_sec / 3600) % 24, (tv.tv_sec / 60) % 60, tv.tv_sec % 60, tv.tv_usec);
+
+    // Print IP layer
+    printf("IP %s.%d > %s.%d: ", 
+           src_ip, ntohs(pkt->tcp->source), dst_ip, ntohs(pkt->tcp->dest));
+
+    // Print TCP Flags
+    printf("Flags [");
+    if (pkt->tcp->syn) printf("S");
+    if (pkt->tcp->ack) printf(".");
+    if (pkt->tcp->fin) printf("F");
+    if (pkt->tcp->rst) printf("R");
+    if (pkt->tcp->psh) printf("P");
+    if (pkt->tcp->urg) printf("U");
+    printf("], ");
+
+    // Print Sequence and Acknowledgment Numbers
+    printf("seq %u", ntohl(pkt->tcp->seq));
+    if (pkt->tcp->ack) {
+        printf(", ack %u", ntohl(pkt->tcp->ack_seq));
+    }
+
+    // Print Window Size
+    printf(", win %u", ntohs(pkt->tcp->window));
+
+    // Print Payload Length
+    printf(", length %d", pkt->payload_size);
+
+    // Reset color
+    printf("\x1b[0m", "\n");
+}
+
+
+enum state transition_from_listening(struct packet* current_packet, struct client_context* context) {
     if (current_packet->tcp->syn) {
+        printf("Handshake response\n");
         unsigned char* syn_ack = init_syn_ack(current_packet, context, htonl(ntohl(current_packet->tcp->seq) + 1), 1, 0);
-        int result = sendto(context.connection, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
-                            (struct sockaddr*)&context.address, context.address_len);
+
+        print_tcpdump_from_buffer(syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), "\x1b[36m");
+        int result = sendto(context->connection, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
+                            (struct sockaddr*)&context->address, context->address_len);
         if (result < 0) perror("sendto");
         return HANDSHAKE_INITIATED;
     }
@@ -38,39 +139,45 @@ enum state transition_from_listening(struct packet* current_packet, struct clien
     return LISTENING;
 }
 
-enum state transition_from_handshake_initiated(struct packet* current_packet, struct client_context context) {
+enum state transition_from_handshake_initiated(struct packet* current_packet, struct client_context* context) {
     if(current_packet->tcp->ack) {
         //if(opts.debug) printf("Connection established\n");
-        context.server_sequence++;
+        printf("Handshake completed, waiting for data\n");
+        printf("Server sequence: %d\n", context->server_sequence);
+        context->server_sequence++;
+        printf("Server sequence: %d\n", context->server_sequence);
         return DATA_TRANSFER;
     }
 
     return HANDSHAKE_INITIATED;
 }
 
-enum state transition_from_data_transfer(struct packet* current_packet, struct client_context context) {
+enum state transition_from_data_transfer(struct packet* current_packet, struct client_context* context) {
     if (current_packet->tcp->fin) {
+        printf("Finish send\n");
         unsigned char* syn_ack = init_syn_ack(current_packet, context, htonl(ntohl(current_packet->tcp->seq) + 1), 0, 0);
-        int result_sync = sendto(context.connection, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
-                          (struct sockaddr*)&context.address, context.address_len);
 
+        print_tcpdump_from_buffer(syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), "\x1b[36m");
+        int result_sync = sendto(context->connection, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
+                          (struct sockaddr*)&context->address, context->address_len);
         unsigned char* fin = init_syn_ack(current_packet, context, htonl(ntohl(current_packet->tcp->seq) + 1), 0, 1);
-        int result_fin = sendto(context.connection, fin, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
-                          (struct sockaddr*)&context.address, context.address_len);
+        print_tcpdump_from_buffer(fin, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), "\x1b[36m");
+        int result_fin = sendto(context->connection, fin, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
+                          (struct sockaddr*)&context->address, context->address_len);
         sleep(1);
 
         return LISTENING;
     }
 
     unsigned char* syn_ack = init_syn_ack(current_packet, context, htonl(current_packet->payload_size + ntohl(current_packet->tcp->seq)), 0, 0);
-    int result = sendto(context.connection, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
-                          (struct sockaddr*)&context.address, context.address_len);
-
+        print_tcpdump_from_buffer(syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), "\x1b[36m");
+    int result = sendto(context->connection, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
+                          (struct sockaddr*)&context->address, context->address_len);
     return DATA_TRANSFER;
 }
 
-enum state handle_packet(enum state current_state, struct packet* current_packet, struct client_context context, struct options opts) {
-    if (opts.debug) printf("Current state: %d\n", current_state);
+enum state handle_packet(enum state current_state, struct packet* current_packet, struct client_context* context, struct options opts) {
+    if (opts.debug) printf("\nCurrent state: %d\n", current_state);
 
     switch(current_state) {
         case LISTENING:
@@ -126,42 +233,9 @@ int main(int argc, char** argv) {
         //if (opts.debug) print_built_in(current_packet); 
         if (opts.verbose) print_raw_bits(buffer, bytes_received);
         if (opts.verbose) print_sections(buffer, bytes_received);
+        print_tcpdump_format(current_packet, "\x1b[32m");
 
-        current_state = handle_packet(current_state, current_packet, context, opts);
-
-//        if (phase == 0 && current_packet->tcp->syn) {
-//
-//        unsigned char* syn_ack = init_syn_ack(current_packet, server_seq, htonl(ntohl(current_packet->tcp->seq) + 1), 1, 0);
-//        int result = sendto(connection, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
-//                            (struct sockaddr*)&client_addr, addr_len);
-//        perror("sendto");
-//
-//        phase++;
-//        } else if(phase == 1 && current_packet->tcp->ack) {
-//            phase++;
-//            printf("Connection established\n");
-//            server_seq++;
-//        } else if(phase == 2 && current_packet->tcp->ack) {
-//            phase++;
-//            printf("send2\n");
-//            printf("Payload length %d\n", current_packet->payload_size);
-//            unsigned char* syn_ack = init_syn_ack(current_packet, server_seq, htonl(current_packet->payload_size + ntohl(current_packet->tcp->seq)), 0, 0);
-//            int result = sendto(connection, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
-//                            (struct sockaddr*)&client_addr, addr_len);
-//        } else if(phase == 3 && current_packet->tcp->fin) {
-//            printf("send3\n");
-//            phase = 0;
-//
-//            unsigned char* syn_ack = init_syn_ack(current_packet, server_seq, htonl(ntohl(current_packet->tcp->seq) + 1), 0, 0);
-//            int result_sync = sendto(connection, syn_ack, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
-//                            (struct sockaddr*)&client_addr, addr_len);
-//            printf("send fin\n");
-//            unsigned char* fin = init_syn_ack(current_packet, server_seq, htonl(ntohl(current_packet->tcp->seq) + 1), 0, 1);
-//            int result_fin = sendto(*connection, fin, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), 0, 
-//                            (struct sockaddr*)&client_addr, addr_len);
-//            sleep(1);
-//        }
-
+        current_state = handle_packet(current_state, current_packet, &context, opts);
     }
 
     shutdown(context.connection, SHUT_RDWR);

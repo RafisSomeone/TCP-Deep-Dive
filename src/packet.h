@@ -18,6 +18,6 @@ unsigned long range_hex_to_decimal(unsigned char* buffer, int from, int to);
 unsigned short calculate_checksum(unsigned short *buf, int len);
 void print_sections(unsigned char* buffer, int size);
 int parse_packet(unsigned char* buffer, struct packet* current_packet);
-unsigned char* init_syn_ack(const struct packet* current_packet, struct client_context context, int ack, int syn_flag, int fin_flag);
+unsigned char* init_syn_ack(const struct packet* current_packet, struct client_context* context, int ack, int syn_flag, int fin_flag);
 
 #endif

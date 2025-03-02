@@ -127,7 +127,7 @@ int parse_packet(unsigned char* buffer, struct packet* current_packet) {
     return 0;
 }
 
-unsigned char* init_syn_ack(const struct packet* current_packet, struct client_context context, int ack, int syn_flag, int fin_flag){
+unsigned char* init_syn_ack(const struct packet* current_packet, struct client_context* context, int ack, int syn_flag, int fin_flag){
     unsigned char* response = malloc(MAX_IP_V4_PACKET_SIZE);
     struct ethhdr* eth_response = (struct ethhdr*) response;
 
@@ -151,7 +151,7 @@ unsigned char* init_syn_ack(const struct packet* current_packet, struct client_c
 
     tcp_response->source = current_packet->tcp->dest;
     tcp_response->dest = current_packet->tcp->source;
-    tcp_response->seq = htonl(context.server_sequence);
+    tcp_response->seq = htonl(context->server_sequence);
     tcp_response->ack_seq = ack;
     tcp_response->doff = 5;
     tcp_response->syn = syn_flag;
