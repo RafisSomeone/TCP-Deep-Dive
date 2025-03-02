@@ -12,6 +12,7 @@
 #include "context.h"
 #include "options.h"
 #include "state.h"
+#include "utils.h"
 
 struct state_transition transition_from_listening(struct packet* current_packet, struct client_context* context, struct options opts) {
     if (current_packet->tcp->syn) {
@@ -19,7 +20,7 @@ struct state_transition transition_from_listening(struct packet* current_packet,
 
         unsigned char* syn_ack = init_syn_ack(current_packet, context, htonl(ntohl(current_packet->tcp->seq) + 1), 1, 0);
 
-        struct response* data = malloc(sizeof(struct response));
+        struct response* data = safe_malloc(sizeof(struct response));
         data->data = syn_ack;
         data->next = NULL;
         return (struct state_transition) {HANDSHAKE_INITIATED, data};
@@ -45,8 +46,8 @@ struct state_transition transition_from_data_transfer(struct packet* current_pac
 
         unsigned char* syn_ack = init_syn_ack(current_packet, context, htonl(ntohl(current_packet->tcp->seq) + 1), 0, 0);
         unsigned char* fin = init_syn_ack(current_packet, context, htonl(ntohl(current_packet->tcp->seq) + 1), 0, 1);
-        struct response* second = malloc(sizeof(struct response));
-        struct response* first = malloc(sizeof(struct response));
+        struct response* second = safe_malloc(sizeof(struct response));
+        struct response* first = safe_malloc(sizeof(struct response));
         second->data = fin;
         second->next = NULL;
         first-> data = syn_ack;
@@ -57,7 +58,7 @@ struct state_transition transition_from_data_transfer(struct packet* current_pac
 
     if (opts.debug) printf("Data received\n");
     unsigned char* syn_ack = init_syn_ack(current_packet, context, htonl(current_packet->payload_size + ntohl(current_packet->tcp->seq)), 0, 0);
-    struct response* data = malloc(sizeof(struct response));
+    struct response* data = safe_malloc(sizeof(struct response));
     data->data = syn_ack;
     data->next = NULL;
     return (struct state_transition) {DATA_TRANSFER, data};

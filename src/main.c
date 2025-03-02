@@ -18,6 +18,7 @@
 #include "options.h"
 #include "context.h"
 #include "state.h"
+#include "utils.h"
 
 int main(int argc, char** argv) {
 
@@ -28,7 +29,7 @@ int main(int argc, char** argv) {
     }
 
     struct client_context context;
-    unsigned char* buffer = malloc(MAX_IP_V4_PACKET_SIZE);
+    unsigned char* buffer = safe_malloc(MAX_IP_V4_PACKET_SIZE);
     context.connection = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 
     if (context.connection < 0) {
@@ -52,7 +53,7 @@ int main(int argc, char** argv) {
             exit(1);
         }
 
-        struct packet* current_packet = malloc(sizeof(struct packet));
+        struct packet* current_packet = safe_malloc(sizeof(struct packet));
         if (parse_packet(buffer, current_packet) == -1) {
             continue;
         }
