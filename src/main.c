@@ -25,60 +25,6 @@ enum state {
     CLOSING_CONNECTION
 };
 
-
-void print_tcpdump_from_buffer(const unsigned char* buffer, int size, const char* color) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);  // Get current timestamp
-
-    struct ethhdr* eth = (struct ethhdr*)buffer;
-    struct iphdr* ip = (struct iphdr*)(buffer + sizeof(struct ethhdr));
-    struct tcphdr* tcp = (struct tcphdr*)(buffer + sizeof(struct ethhdr) + (ip->ihl * 4));
-    int ip_header_size = ip->ihl * 4;
-    int tcp_header_size = tcp->doff * 4;
-    int payload_size = size - (sizeof(struct ethhdr) + ip_header_size + tcp_header_size);
-    unsigned char* payload = (unsigned char*)(buffer + sizeof(struct ethhdr) + ip_header_size + tcp_header_size);
-
-    char src_ip[INET_ADDRSTRLEN], dst_ip[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &(ip->saddr), src_ip, INET_ADDRSTRLEN);
-    inet_ntop(AF_INET, &(ip->daddr), dst_ip, INET_ADDRSTRLEN);
-
-    // Apply color to output
-    printf("%s", color);
-
-    // Print timestamp
-    printf("%02ld:%02ld:%02ld.%06ld ", 
-           (tv.tv_sec / 3600) % 24, (tv.tv_sec / 60) % 60, tv.tv_sec % 60, tv.tv_usec);
-
-    // Print IP header information
-    printf("IP %s.%d > %s.%d: ", 
-           src_ip, ntohs(tcp->source), dst_ip, ntohs(tcp->dest));
-
-    // Print TCP Flags
-    printf("Flags [");
-    if (tcp->syn) printf("S");
-    if (tcp->ack) printf(".");
-    if (tcp->fin) printf("F");
-    if (tcp->rst) printf("R");
-    if (tcp->psh) printf("P");
-    if (tcp->urg) printf("U");
-    printf("], ");
-
-    // Print Sequence and Acknowledgment Numbers
-    printf("seq %u", ntohl(tcp->seq));
-    if (tcp->ack) {
-        printf(", ack %u", ntohl(tcp->ack_seq));
-    }
-
-    // Print Window Size
-    printf(", win %u", ntohs(tcp->window));
-
-    // Print Payload Length
-    printf(", length %d", payload_size);
-
-    // Reset color
-    printf("\x1b[0m" "\n");
-}
-
 struct response {
     unsigned char* data;
     struct response* next;
@@ -140,10 +86,13 @@ struct state_transition transition_from_data_transfer(struct packet* current_pac
 void handle_transition(struct state_transition transition, struct client_context* context) {
     int size = sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr);
     struct response* head = transition.response_head;
-    while (head != NULL) {
+    while (head) {
             int result = sendto(context->connection, head->data, size, 0, (struct sockaddr*)&context->address, context->address_len);
-            print_tcpdump_from_buffer(head->data, size, "\x1b[36m");
-            head = head->next;
+            print_tcpdump_from_buffer(head->data, size, COLOR_CYAN);
+
+            struct response* next = head->next;
+            free(head);
+            head = next;
         }
 }
 
@@ -204,7 +153,7 @@ int main(int argc, char** argv) {
             exit(1);
         }
 
-        if (opts.verbose) print_tcpdump_from_buffer(buffer, bytes_received, "\x1b[36m");
+        if (opts.verbose) print_tcpdump_from_buffer(buffer, bytes_received, COLOR_GREEN);
 
         struct packet* current_packet = malloc(sizeof(struct packet));
         if (parse_packet(buffer, current_packet) == -1) {

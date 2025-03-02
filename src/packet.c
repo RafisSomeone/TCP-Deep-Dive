@@ -11,6 +11,8 @@
 #include "tcp.h"
 #include "context.h"
 
+#define COLOR_RESET   "\x1b[0m"
+
 void print_range(unsigned char* buffer, int from, int to) {
     for (int i = from; i < to; i++) {
         printf("%02X ", buffer[i]);
@@ -36,17 +38,45 @@ void print_raw_bits(unsigned char* buffer, int size) {
     printf("\n\n");
 }
 
-void print_built_in(const struct packet* current_packet) {
-    struct ethhdr* eth = current_packet->eth;
-    print_eth_built_in(eth);
-     
-    struct iphdr* ip = current_packet->ip;
-    print_ip_built_in(ip);
+void print_tcpdump_from_buffer(const unsigned char* buffer, int size, const char* color) {
+    struct timeval time;
+    gettimeofday(&time, NULL);
 
-    struct tcphdr* tcp = current_packet->tcp;
-    print_tcp_built_in(tcp);
+    struct ethhdr* eth = (struct ethhdr*)buffer;
+    struct iphdr* ip = (struct iphdr*)(buffer + sizeof(struct ethhdr));
+    struct tcphdr* tcp = (struct tcphdr*)(buffer + sizeof(struct ethhdr) + (ip->ihl * 4));
+
+    int ip_header_size = ip->ihl * 4;
+    int tcp_header_size = tcp->doff * 4;
+    int payload_size = size - (sizeof(struct ethhdr) + ip_header_size + tcp_header_size);
+    unsigned char* payload = (unsigned char*)(buffer + sizeof(struct ethhdr) + ip_header_size + tcp_header_size);
+
+    char src_ip[INET_ADDRSTRLEN]; 
+    char dst_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(ip->saddr), src_ip, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &(ip->daddr), dst_ip, INET_ADDRSTRLEN);
+
+    printf("%s", color);
+    printf("%02ld:%02ld:%02ld.%06ld ", 
+           (time.tv_sec / 3600) % 24, (time.tv_sec / 60) % 60, time.tv_sec % 60, time.tv_usec);
+    printf("IP %s.%d > %s.%d: ", 
+           src_ip, ntohs(tcp->source), dst_ip, ntohs(tcp->dest));
+    printf("Flags [");
+    if (tcp->syn) printf("S");
+    if (tcp->ack) printf(".");
+    if (tcp->fin) printf("F");
+    if (tcp->rst) printf("R");
+    if (tcp->psh) printf("P");
+    if (tcp->urg) printf("U");
+    printf("], ");
+    printf("seq %u", ntohl(tcp->seq));
+    if (tcp->ack) {
+        printf(", ack %u", ntohl(tcp->ack_seq));
+    }
+    printf(", win %u", ntohs(tcp->window));
+    printf(", length %d", payload_size);
+    printf(COLOR_RESET "\n");
 }
-
 
 unsigned short calculate_checksum(unsigned short *buf, int len) {
     unsigned long sum = 0;

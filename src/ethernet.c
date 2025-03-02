@@ -30,14 +30,3 @@ void parse_ethernet_header(unsigned char* buffer, int from, int to) {
     print_range(buffer, ethertype_start, to);
 }
 
-void print_eth_built_in(const struct ethhdr* eth) {
-    printf("Ethernet Header:\n");
-    printf("   Source MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
-           eth->h_source[0], eth->h_source[1], eth->h_source[2],
-           eth->h_source[3], eth->h_source[4], eth->h_source[5]);
-    printf("   Destination MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
-           eth->h_dest[0], eth->h_dest[1], eth->h_dest[2],
-           eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
-    printf("   Protocol: 0x%04X\n", ntohs(eth->h_proto));
-}
-

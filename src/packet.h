@@ -3,6 +3,9 @@
 
 #include "context.h"
 
+#define COLOR_CYAN "\x1b[36m"
+#define COLOR_GREEN "\x1b[32m"
+
 struct packet {
    struct ethhdr* eth;
    struct iphdr* ip;
@@ -12,7 +15,6 @@ struct packet {
 };
 
 void print_raw_bits(unsigned char* buffer, int size);
-void print_built_in(const struct packet* current_packet);
 void print_range(unsigned char* buffer, int from, int to);
 unsigned long range_hex_to_decimal(unsigned char* buffer, int from, int to);
 unsigned short calculate_checksum(unsigned short *buf, int len);
