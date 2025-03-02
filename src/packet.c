@@ -9,6 +9,7 @@
 #include "ip.h"
 #include "ethernet.h"
 #include "tcp.h"
+#include "context.h"
 
 void print_range(unsigned char* buffer, int from, int to) {
     for (int i = from; i < to; i++) {
@@ -35,7 +36,7 @@ void print_raw_bits(unsigned char* buffer, int size) {
     printf("\n\n");
 }
 
-void print_built_in(const packet* current_packet) {
+void print_built_in(const struct packet* current_packet) {
     struct ethhdr* eth = current_packet->eth;
     print_eth_built_in(eth);
      
@@ -93,7 +94,7 @@ void print_sections(unsigned char* buffer, int size) {
     print_range(buffer, payload_start, size);
     printf("\n");
 }
-int parse_packet(unsigned char* buffer, packet* current_packet) {
+int parse_packet(unsigned char* buffer, struct packet* current_packet) {
 
     struct ethhdr* eth =(struct ethhdr*) buffer;
     if (ntohs(eth->h_proto) != ETH_P_IP) {
@@ -126,7 +127,7 @@ int parse_packet(unsigned char* buffer, packet* current_packet) {
     return 0;
 }
 
-unsigned char* init_syn_ack(const packet* current_packet, int seq, int ack, int syn_flag, int fin_flag){
+unsigned char* init_syn_ack(const struct packet* current_packet, struct client_context context, int ack, int syn_flag, int fin_flag){
     unsigned char* response = malloc(MAX_IP_V4_PACKET_SIZE);
     struct ethhdr* eth_response = (struct ethhdr*) response;
 
@@ -150,7 +151,7 @@ unsigned char* init_syn_ack(const packet* current_packet, int seq, int ack, int 
 
     tcp_response->source = current_packet->tcp->dest;
     tcp_response->dest = current_packet->tcp->source;
-    tcp_response->seq = htonl(seq);
+    tcp_response->seq = htonl(context.server_sequence);
     tcp_response->ack_seq = ack;
     tcp_response->doff = 5;
     tcp_response->syn = syn_flag;
