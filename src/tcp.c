@@ -80,25 +80,6 @@ int parse_tcp_header(unsigned char* buffer, int from) {
     return data_offset;
 }
 
-void print_tcp_built_in(const struct tcphdr* tcp) {
-    unsigned int header_len = tcp->doff * 4;  
-    unsigned char flags = 0;
-    flags = *((unsigned char*)tcp + 13); 
-    printf("TCP Header:\n");
-    printf("   Header Length: %d bytes\n", header_len);
-    printf("   Flags: ");
-    if (flags & TH_SYN) printf("SYN ");
-    if (flags & TH_ACK) printf("ACK ");
-    if (flags & TH_FIN) printf("FIN ");
-    if (flags & TH_RST) printf("RST ");
-    if (flags & TH_PUSH) printf("PSH ");
-    if (flags & TH_URG) printf("URG ");
-    printf("\n");
-    printf("   Window Size: %u\n", ntohs(tcp->window));
-    printf("   Checksum: 0x%04X\n", ntohs(tcp->check));
-    printf("   Urgent Pointer: %u\n\n", ntohs(tcp->urg_ptr));
-}
-
 unsigned short tcp_checksum(const struct iphdr *ip, const struct tcphdr *tcp, const unsigned char *payload, int payload_len) {
     int tcp_len = (int)(sizeof(struct tcphdr)) + payload_len;
 

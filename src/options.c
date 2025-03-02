@@ -14,8 +14,8 @@ void print_help() {
 }
 
 struct options parse_options(int argc, char* argv[]) {
-    struct options opts = {false, false};
-    char shortopts[] = "hv";
+    struct options opts = {false, false, false};
+    char shortopts[] = "hvd";
     int opt;
 
     while ((opt = getopt_long(argc, argv, shortopts, long_options, NULL)) != -1) {
@@ -25,6 +25,8 @@ struct options parse_options(int argc, char* argv[]) {
                 opts.help = true;
             case 'v':
                 opts.verbose = true;
+            case 'd':
+                opts.debug = true;
         }
     }
     

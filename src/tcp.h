@@ -12,9 +12,7 @@ struct pseudo_header {
     uint16_t tcp_length;
 };
 
-
 int parse_tcp_header(unsigned char* buffer, int from);
-void print_tcp_built_in(const struct tcphdr* tcp);
 unsigned short tcp_checksum(const struct iphdr *ip, const struct tcphdr *tcp, const unsigned char *payload, int payload_len);
 
 #endif

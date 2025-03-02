@@ -18,14 +18,6 @@ void print_bits(unsigned char* buffer, int from, int to) {
     printf("\n");
 }
 
-void print_ip_built_in(const struct iphdr* ip) {
-    printf("IP Header:\n");
-    printf("   Source IP: %s\n", inet_ntoa(*(struct in_addr *)&ip->saddr));
-    printf("   Destination IP: %s\n", inet_ntoa(*(struct in_addr *)&ip->daddr));
-    printf("   Protocol: %d\n", ip->protocol);
-    printf("   Total Length: %d\n\n", ntohs(ip->tot_len));
-}
-
 void print_ip(unsigned char* buffer, int from) {
     printf("%d.%d.%d.%d\n", buffer[from], buffer[from + 1], buffer[from + 2], buffer[from + 3]);
 }

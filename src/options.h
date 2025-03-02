@@ -7,11 +7,13 @@
 struct options {
    bool verbose;
    bool help;
+   bool debug;
 };
 
 static struct option long_options[] = {
    {"verbose", no_argument, 0, 'v'},
    {"help", no_argument, 0, 'h'},
+   {"debug", no_argument, 0, 'd'},
    {0, 0, 0, 0}
 };
 
