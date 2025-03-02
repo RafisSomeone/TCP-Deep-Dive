@@ -35,9 +35,10 @@ struct state_transition {
     struct response* response_head;
 };
 
-struct state_transition transition_from_listening(struct packet* current_packet, struct client_context* context) {
+struct state_transition transition_from_listening(struct packet* current_packet, struct client_context* context, struct options opts) {
     if (current_packet->tcp->syn) {
-        printf("Handshake response\n");
+        if (opts.debug) printf("Handshake response\n");
+
         unsigned char* syn_ack = init_syn_ack(current_packet, context, htonl(ntohl(current_packet->tcp->seq) + 1), 1, 0);
 
         struct response* data = malloc(sizeof(struct response));
@@ -49,21 +50,21 @@ struct state_transition transition_from_listening(struct packet* current_packet,
     return (struct state_transition) {LISTENING, NULL};
 }
 
-struct state_transition transition_from_handshake_initiated(struct packet* current_packet, struct client_context* context) {
+struct state_transition transition_from_handshake_initiated(struct packet* current_packet, struct client_context* context, struct options opts) {
     if(current_packet->tcp->ack) {
-        //if(opts.debug) printf("Connection established\n");
-        printf("Handshake completed, waiting for data\n");
-        printf("Server sequence: %d\n", context->server_sequence);
+        if (opts.debug) printf("Handshake completed, waiting for data\n");
+
         context->server_sequence++;
-        printf("Server sequence: %d\n", context->server_sequence);
         return (struct state_transition) {DATA_TRANSFER, NULL};
     }
 
     return (struct state_transition) {HANDSHAKE_INITIATED, NULL};
 }
 
-struct state_transition transition_from_data_transfer(struct packet* current_packet, struct client_context* context) {
+struct state_transition transition_from_data_transfer(struct packet* current_packet, struct client_context* context, struct options opts) {
     if (current_packet->tcp->fin) {
+        if (opts.debug) printf("Closing connection\n");
+
         unsigned char* syn_ack = init_syn_ack(current_packet, context, htonl(ntohl(current_packet->tcp->seq) + 1), 0, 0);
         unsigned char* fin = init_syn_ack(current_packet, context, htonl(ntohl(current_packet->tcp->seq) + 1), 0, 1);
         struct response* second = malloc(sizeof(struct response));
@@ -76,6 +77,7 @@ struct state_transition transition_from_data_transfer(struct packet* current_pac
         return (struct state_transition) {LISTENING, first};
     }
 
+    if (opts.debug) printf("Data received\n");
     unsigned char* syn_ack = init_syn_ack(current_packet, context, htonl(current_packet->payload_size + ntohl(current_packet->tcp->seq)), 0, 0);
     struct response* data = malloc(sizeof(struct response));
     data->data = syn_ack;
@@ -97,17 +99,17 @@ void handle_transition(struct state_transition transition, struct client_context
 }
 
 enum state handle_packet(enum state current_state, struct packet* current_packet, struct client_context* context, struct options opts) {
-    if (opts.debug) printf("\nCurrent state: %d\n", current_state);
     struct state_transition transition;
+
     switch(current_state) {
         case LISTENING:
-            transition = transition_from_listening(current_packet, context);
+            transition = transition_from_listening(current_packet, context, opts);
             break;
         case HANDSHAKE_INITIATED:
-            transition = transition_from_handshake_initiated(current_packet, context);
+            transition = transition_from_handshake_initiated(current_packet, context, opts);
             break;
         case DATA_TRANSFER:
-            transition = transition_from_data_transfer(current_packet, context);
+            transition = transition_from_data_transfer(current_packet, context, opts);
             break;
         default:
             fprintf(stderr, "Uknown state, reset\n");
@@ -153,13 +155,12 @@ int main(int argc, char** argv) {
             exit(1);
         }
 
-        if (opts.verbose) print_tcpdump_from_buffer(buffer, bytes_received, COLOR_GREEN);
-
         struct packet* current_packet = malloc(sizeof(struct packet));
         if (parse_packet(buffer, current_packet) == -1) {
             continue;
         }
 
+        if (opts.debug) print_tcpdump_from_buffer(buffer, bytes_received, COLOR_GREEN);
         if (opts.verbose) print_raw_bits(buffer, bytes_received);
         if (opts.verbose) print_sections(buffer, bytes_received);
 
