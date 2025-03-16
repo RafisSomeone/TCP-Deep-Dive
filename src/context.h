@@ -10,4 +10,7 @@ struct client_context {
     int server_sequence;
 };
 
+struct client_context init_context();
+void cleanup(struct client_context* context, unsigned char buffer);
+
 #endif

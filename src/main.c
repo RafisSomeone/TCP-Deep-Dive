@@ -1,16 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h>
-#include <netinet/tcp.h>  
 #include <net/ethernet.h>
-#include <net/if.h>
 #include <netpacket/packet.h>
+#include <time.h>
 
 #include "packet.h"
 #include "tcp.h"
@@ -21,24 +16,14 @@
 #include "utils.h"
 
 int main(int argc, char** argv) {
-
-    struct options opts = parse_options(argc, argv);
+   struct options opts = parse_options(argc, argv);
     
-    if (opts.help == 1) {
+    if (opts.help) {
         return 0;
     }
 
-    struct client_context context;
+    struct client_context context = init_context();
     unsigned char* buffer = safe_malloc(MAX_IP_V4_PACKET_SIZE);
-    context.connection = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-
-    if (context.connection < 0) {
-        fprintf(stderr, "Socket creation failed, run with sudo\n");
-        exit(2);
-    }
-    
-    context.address_len = sizeof(struct sockaddr_ll);
-    context.server_sequence = rand() % 100000;
 
     enum state current_state = LISTENING;
 
@@ -47,9 +32,7 @@ int main(int argc, char** argv) {
                                       (struct sockaddr*) &context.address, &context.address_len);
         if (bytes_received < 0) {
             fprintf(stderr, "recvfrom failed\n");
-            shutdown(context.connection, SHUT_RDWR);
-            close(context.connection);
-            free(buffer);
+            cleanup(&context, buffer);
             exit(1);
         }
 
@@ -65,9 +48,7 @@ int main(int argc, char** argv) {
         current_state = handle_packet(current_state, current_packet, &context, opts);
     }
 
-    shutdown(context.connection, SHUT_RDWR);
-    close(context.connection);
-    free(buffer);
+    cleanup(&context, buffer);
     return 0;
 }
 

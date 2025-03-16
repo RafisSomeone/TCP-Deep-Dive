@@ -64,14 +64,15 @@ struct state_transition transition_from_data_transfer(struct packet* current_pac
     return (struct state_transition) {DATA_TRANSFER, data};
 }
 
-void handle_transition(struct state_transition transition, struct client_context* context) {
+void handle_transition(struct state_transition transition, struct client_context* context, struct options opts) {
     int size = sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr);
     struct response* head = transition.response_head;
     while (head) {
             int result = sendto(context->connection, head->data, size, 0, (struct sockaddr*)&context->address, context->address_len);
-            print_tcpdump_from_buffer(head->data, size, COLOR_CYAN);
+            if (opts.debug) print_tcpdump_from_buffer(head->data, size, COLOR_CYAN);
 
             struct response* next = head->next;
+            free(head->data);
             free(head);
             head = next;
         }
@@ -95,7 +96,7 @@ enum state handle_packet(enum state current_state, struct packet* current_packet
             transition = (struct state_transition) {LISTENING};
     }
 
-    handle_transition(transition, context);
+    handle_transition(transition, context, opts);
     current_state = transition.next_state;
 }
 
