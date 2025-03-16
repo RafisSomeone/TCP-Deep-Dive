@@ -46,6 +46,7 @@ int main(int argc, char** argv) {
         if (opts.verbose) print_sections(buffer, bytes_received);
 
         current_state = handle_packet(current_state, current_packet, &context, opts);
+        if (current_state == LISTENING) break;
     }
 
     cleanup(&context, buffer);

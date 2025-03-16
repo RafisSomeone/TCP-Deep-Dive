@@ -160,6 +160,8 @@ int parse_packet(unsigned char* buffer, struct packet* current_packet) {
 
 unsigned char* init_syn_ack(const struct packet* current_packet, struct client_context* context, int ack, int syn_flag, int fin_flag){
     unsigned char* response = safe_malloc(MAX_IP_V4_PACKET_SIZE);
+    memset(response, 0, MAX_IP_V4_PACKET_SIZE);
+
     struct ethhdr* eth_response = (struct ethhdr*) response;
 
     memcpy(eth_response->h_dest, current_packet->eth->h_source, ETH_ALEN);

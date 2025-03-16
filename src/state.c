@@ -13,6 +13,7 @@
 #include "options.h"
 #include "state.h"
 #include "utils.h"
+#include "ip.h"
 
 struct state_transition transition_from_listening(struct packet* current_packet, struct client_context* context, struct options opts) {
     if (current_packet->tcp->syn) {
