@@ -48,7 +48,8 @@ int main(int argc, char** argv) {
 
         current_state = handle_packet(current_state, current_packet, &context, opts);
         packet_cleanup(current_packet);
-        if (current_state == LISTENING) break;
+
+        if (current_state == LISTENING && opts.single_session) break;
     }
 
     server_cleanup(&context, buffer);
