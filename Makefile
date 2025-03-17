@@ -5,15 +5,28 @@ SRCS = $(wildcard src/*.c)
 OBJECTS = $(SRCS:.c=.o)
 DEPENDENCIES = $(SRCS:.c=.d)
 
+TEST_DIR = tests
+TEST_SRC = $(wildcard $(TEST_DIR)/*.c)
+UNITY_SRC = $(TEST_DIR)/unity/unity.c
+TEST_OBJECTS = $(TEST_SRC:.c=.o) $(UNITY_SRC:.c=.o)
+TEST_EXE = test_runner
+TEST_CFLAGS = $(CFLAGS) -Itests/unity -Isrc
+
 all: $(EXE)
 
 $(EXE): $(OBJECTS)
 	$(CC) $(CFLAGS) $(OBJECTS) -o $(EXE)
 
+$(TEST_EXE): $(TEST_OBJECTS) $(filter-out src/main.o, $(OBJECTS))
+	$(CC) $(TEST_CFLAGS) $(TEST_OBJECTS) $(filter-out src/main.o, $(OBJECTS)) -o $(TEST_EXE)
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+test: $(TEST_EXE)
+	./$(TEST_EXE)
+
 clean:
-	rm -f $(EXE) $(OBJECTS) $(DEPENDENCIES)
+	rm -f $(EXE) $(OBJECTS) $(DEPENDENCIES) $(TEST_EXE) $(TEST_OBJECTS)
 
 -include $(DEPENDENCIES)
