@@ -32,12 +32,13 @@ int main(int argc, char** argv) {
                                       (struct sockaddr*) &context.address, &context.address_len);
         if (bytes_received < 0) {
             fprintf(stderr, "recvfrom failed\n");
-            cleanup(&context, buffer);
+            server_cleanup(&context, buffer);
             exit(1);
         }
 
         struct packet* current_packet = safe_malloc(sizeof(struct packet));
         if (parse_packet(buffer, current_packet) == -1) {
+            packet_cleanup(current_packet);
             continue;
         }
 
@@ -46,10 +47,11 @@ int main(int argc, char** argv) {
         if (opts.verbose) print_sections(buffer, bytes_received);
 
         current_state = handle_packet(current_state, current_packet, &context, opts);
+        packet_cleanup(current_packet);
         if (current_state == LISTENING) break;
     }
 
-    cleanup(&context, buffer);
+    server_cleanup(&context, buffer);
     return 0;
 }
 

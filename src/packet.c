@@ -153,8 +153,10 @@ int parse_packet(unsigned char* buffer, struct packet* current_packet) {
 
     if (current_packet->payload_size > 0) {
         current_packet->payload = safe_malloc(current_packet->payload_size * sizeof(unsigned char));
+        memcpy(current_packet->payload, buffer + eth_ip_header_size + tcp->doff * 4, current_packet->payload_size);
+    } else {
+        current_packet->payload = NULL;
     }
-    memcpy(current_packet->payload, buffer + eth_ip_header_size + tcp->doff * 4, current_packet->payload_size);
     return 0;
 }
 
