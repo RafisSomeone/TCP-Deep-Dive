@@ -20,6 +20,9 @@ $(EXE): $(OBJECTS)
 $(TEST_EXE): $(TEST_OBJECTS) $(filter-out src/main.o, $(OBJECTS))
 	$(CC) $(TEST_CFLAGS) $(TEST_OBJECTS) $(filter-out src/main.o, $(OBJECTS)) -o $(TEST_EXE)
 
+tests/%.o: tests/%.c
+	$(CC) $(TEST_CFLAGS) -c $< -o $@
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
