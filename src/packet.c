@@ -203,3 +203,14 @@ unsigned char* init_syn_ack(const struct packet* current_packet, struct client_c
     return response;
 } 
 
+void packet_cleanup(struct packet* current) {
+    if (!current) return; 
+
+    if (current->payload) {
+        free(current->payload);
+        current->payload = NULL;
+    }
+    free(current);
+    current = NULL;
+}
+

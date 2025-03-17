@@ -9,7 +9,6 @@
 
 #include "context.h"
 #include "ip.h"
-#include "packet.h"
 
 struct client_context init_context() {
     struct client_context context;
@@ -40,13 +39,3 @@ void server_cleanup(struct client_context* context, unsigned char* buffer) {
     }
 }
 
-void packet_cleanup(struct packet* current) {
-    if (!current) return; 
-
-    if (current->payload) {
-        free(current->payload);
-        current->payload = NULL;
-    }
-    free(current);
-    current = NULL;
-}
