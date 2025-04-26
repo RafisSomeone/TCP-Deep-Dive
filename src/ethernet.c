@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "ethernet.h"
+#include "packet.h"
 
 void print_mac(unsigned char *buffer, int from, int to) {
   for (int i = from; i < to - 1; i++) {
@@ -14,7 +15,6 @@ void print_mac(unsigned char *buffer, int from, int to) {
 void parse_ethernet_header(unsigned char *buffer, int from, int to) {
   int destiantion_mac_size = 6;
   int source_mac_size = 6;
-  int ethertype_size = 2;
 
   int source_mac_start = destiantion_mac_size + from;
   int ethertype_start = source_mac_start + source_mac_size;

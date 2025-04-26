@@ -23,6 +23,8 @@ int parse_packet(unsigned char *buffer, struct packet *current_packet);
 unsigned char *init_syn_ack(const struct packet *current_packet,
                             struct client_context *context, int ack,
                             int syn_flag, int fin_flag);
+void print_tcpdump_from_buffer(const unsigned char *buffer, int size,
+                               const char *color);
 void packet_cleanup(struct packet *current);
 
 #endif
