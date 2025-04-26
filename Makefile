@@ -38,4 +38,7 @@ format:
 clean:
 	rm -f $(EXE) $(OBJECTS) $(DEPENDENCIES) $(TEST_EXE) $(TEST_OBJECTS)
 
+valgrind:
+	sudo valgrind --track-origins=yes --leak-check=full --show-leak-kinds=all ./tcp_server -s
+
 -include $(DEPENDENCIES)
