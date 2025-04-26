@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -MMD -MP -Wall -Wextra -Wshadow=local -Wconversion 
+CFLAGS = -MMD -MP -Wextra -Wshadow=local
 EXE = tcp_server
 SRCS = $(wildcard src/*.c)
 OBJECTS = $(SRCS:.c=.o)
@@ -29,8 +29,11 @@ tests/%.o: tests/%.c
 test: $(TEST_EXE)
 	./$(TEST_EXE)
 
-format:
+format-check:
 	find src tests \( -maxdepth 1 -name "*.c" -o -name "*.h" \) | xargs clang-format --dry-run --Werror
+
+format:
+	find src tests \( -maxdepth 1 -name "*.c" -o -name "*.h" \) | xargs clang-format -i
 
 clean:
 	rm -f $(EXE) $(OBJECTS) $(DEPENDENCIES) $(TEST_EXE) $(TEST_OBJECTS)

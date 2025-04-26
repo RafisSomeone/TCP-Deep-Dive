@@ -11,6 +11,6 @@ struct client_context {
 };
 
 struct client_context init_context();
-void cleanup(struct client_context *context, unsigned char *buffer);
+void server_cleanup(struct client_context *context, unsigned char *buffer);
 
 #endif
