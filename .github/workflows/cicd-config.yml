@@ -17,13 +17,13 @@ jobs:
       run: make
 
   format:
-    name: Code format check
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Install clang-format
-      run: sudo apt-get update && sudo apt-get install -y clang-format
+
+    - uses: aminya/setup-cpp@v1
+      with:
+        clangformat: true
 
     - name: Run format check
       run: make format-check
